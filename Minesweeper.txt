@@ -1,0 +1,303 @@
+package de.hsos.prog3.greetingextended;
+
+import android.annotation.SuppressLint;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.View;
+import android.widget.ImageView;
+
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.window.layout.WindowMetrics;
+import androidx.window.layout.WindowMetricsCalculator;
+
+import java.util.Random;
+
+
+public class MainActivity extends AppCompatActivity {
+    private static final String TAG = MainActivity.class.getName();
+    private ImageView imageView; //Galerie zum Darstellen des Bildes
+    private Canvas canvas;       //der Maler kann zeichnen, schreiben usw.
+    private Bitmap bitmap;       //die Leinwand, die der Maler nutzt
+    private Paint paint;         //Werkzeuge, wie Pinsel, Farbpalette, ...
+    private final int spalte = 51;
+    private final int zeile = 21;
+    private final boolean[][] felder = new boolean[spalte][zeile];
+    private boolean[][] aufgedeckteZellen = new boolean[spalte][zeile];
+    private Random random = new Random();
+    private final int x = 40;
+    private final int y = 40;
+    private boolean flagge;
+    private boolean flaggeLoeschen;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        this.initialize();
+        this.setContentView(this.imageView);
+        this.startDrawing();
+    }
+
+    private void initialize() {
+        this.initDisplayForFullscreen();
+        this.initBitmap();
+        this.initImageView();
+        this.canvas = new Canvas(this.bitmap);
+        this.paint = new Paint();
+    }
+
+
+    private void initDisplayForFullscreen() {
+        //EdgeToEdge.enable(this);
+        //Ziel:      die Anwendung soll als Fullscreen-Anwendung die gesamte Displayflaeche nutzen
+        //Problem:   Teile der Displayflaeche nehmen die Systemsbars ein (oben: Statusbar, unten: Navigationbar)
+        //Frage:     die Systembars sind oben und unten, aber es wird zudem links und rechts Flaeche weiss dargestellt
+        //Antwort:   die View wird per Default mit dem Default Scale-Type CENTER_INSIDE dargestellt.
+        //           Hierbei bleiben die Seitenverhaeltnisse des umgebenden PhoneWindows erhalten.
+        //Erklaerung:jeder Activity wird ein PhoneWindow zugeordnet. , ueber das Views dargestellt werden koennen.
+        //           Das PhoneWindow umhuellt die DecorView, die der root-Container saemtlicher Views der Actitivy ist.
+        //           DecorView nutzt dazu das FrameLayout.
+        //WindowInsetsController verwalten diese WindowInsets
+        WindowInsetsControllerCompat windowInsetsController =
+                WindowCompat.getInsetsController(this.getWindow(), this.getWindow().getDecorView());
+        //ueber den WindowInsetsController lassen sich die Systembars ausblenden
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars());
+        //sobald allerdings das erste Mal in den Darstellungsbereich der Systembars geklickt wird
+        //werden diese wieder dargestellt
+        //laesst sich ueber das Default-Verhalten der Systembars erklaeren
+        //beim Auftreten eines Touch-Events werden die Systembars dargestellt: windowInsetController.show(...)
+        //dieses Verhalten laesst sich ueber den windowInstetsController aendert
+        //Ziel ist es, die Systembars kurz dazustellen, wenn der Nutzer swipped (ueber das Display wischt)
+        //dies laesst sich wieder ueber den WindowInsetsController erreichen
+        windowInsetsController.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        );
+    }
+
+    private void initBitmap() {
+        WindowMetrics metrics = WindowMetricsCalculator
+                .getOrCreate()
+                .computeCurrentWindowMetrics(this.getApplicationContext());
+        this.bitmap = Bitmap.createBitmap(metrics.getBounds().width(),
+                metrics.getBounds().height(),
+                Bitmap.Config.ARGB_8888);
+    }
+
+    //    @SuppressLint("ClickableViewAccessibility")
+    private void initImageView() {
+        this.imageView = new ImageView(this);
+        this.imageView.setOnTouchListener(this::onTouchListener);
+        this.imageView.setImageBitmap(this.bitmap);
+    }
+
+    private boolean onTouchListener(View view, MotionEvent motionEvent) {
+        Log.d(TAG, "OnTouchEvent der ImageView wird behandelt.");
+        if(motionEvent.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            this.spielen(motionEvent.getX(), motionEvent.getY());
+        }
+        return true;
+    }
+
+    private void startDrawing() {
+        this.drawBackground();
+        this.drawFeld();
+        this.zeichneFlagge();
+        this.zeichneFlaggeWeg();
+        this.neustartButton();
+    }
+
+    private void drawBackground() {
+        this.canvas.drawColor(Color.GRAY);
+    }
+    private void drawFeld() {
+        for (int i = 0; i < felder.length; i++) {
+            for (int j = 0; j < felder[i].length; j++) {
+                paint.setColor(Color.argb(255, 60, 60, 60));
+                canvas.drawRect(x * i - 22 + 100, y * j - 22 + 100, x * i + 22 + 100, y * j + 22 + 100, paint);
+                paint.setColor(Color.rgb(90, 90, 90));
+                canvas.drawRect(x * i - 18 + 100, y * j - 18 + 100, x * i + 18 + 100, y * j + 18 + 100, paint);
+                felder[i][j] = random.nextInt(100) <= 13;
+            }
+        }
+    }
+    private void spielen(float touchX, float touchY) {
+        int x = 40;
+        int y = 40;
+
+        if (touchX > 80 && touchX < 120 && touchY > 1000 && touchY < 1040){
+            flagge = true;
+        }
+        if (touchX > 80+50 && touchX < 120+50 && touchY > 1000 && touchY < 1040){
+            flagge = false;
+        }
+        if(touchX > 1924 && touchX < 2116 && touchY > 984 && touchY < 1040){
+            for (int resetI = 0; resetI < felder.length; resetI++){
+                for (int resetJ = 0; resetJ < felder[resetI].length; resetJ++){
+                    aufgedeckteZellen[resetI][resetJ] =  false;
+                }
+            }
+            startDrawing();
+            this.imageView.invalidate();
+        }
+        //outerLoop:
+        for(int i = 0; i < felder.length; i++) {
+            for (int j = 0; j < felder[i].length; j++) {
+                if (touchX > x * i - 18+100 && touchX < x * i + 18+100 && touchY > y * j - 18+100 && touchY < y * j + 18+100){
+                    if(felder[i][j] && !flagge){
+                        for(int i1 = 0; i1 < felder.length; i1++) {
+                            for (int j1 = 0; j1 < felder[i1].length; j1++) {
+                                if(felder[i1][j1]) {
+                                    paint.setColor(Color.rgb(219, 101, 101));
+                                    canvas.drawRect(x * i1 - 18 + 100, y * j1 - 18 + 100, x * i1 + 18 + 100, y * j1 + 18 + 100, paint);
+                                    paint.setColor(Color.rgb(0, 0, 0));
+                                    canvas.drawCircle(x * i1 + 100, y * j1 + 100, 15, paint);
+                                    this.imageView.invalidate();
+                                }
+                            }
+                        }
+                        paint.setColor(Color.RED);
+                        canvas.drawText("Gameover :(",1000,1000,paint);
+                        //break outerLoop;
+                    } else {
+                        printenZahlen(i,j);
+                    }
+                    // canvas.drawRect(1924,984,2116,1040, paint);
+                }
+            }
+        }
+    }
+
+
+    private void aufdecken(int i, int j) {
+        if (i < 0 || i >= spalte || j < 0 || j >= zeile || aufgedeckteZellen[i][j]) {
+            return;  // Verlasse die Methode, wenn die Zelle außerhalb des Spielfelds oder bereits aufgedeckt ist
+        }
+
+        aufgedeckteZellen[i][j] = true;  // Markiere die Zelle als aufgedeckt
+
+        if (!felder[i][j] && bombeZaehlen(i,j) == 0) {
+            // Die Zelle ist leer, also decke alle benachbarten Zellen auf
+            for (int c = -1; c <= 1; c++) {
+                for (int d = -1; d <= 1; d++) {
+                    paint.setColor(Color.rgb(115, 115, 115));
+                    canvas.drawRect(x * i - 18 + 100, y * j - 18 + 100, x * i + 18 + 100, y * j + 18 + 100, paint);
+                    aufdecken(i + c, j + d);
+                }
+            }
+        } else if (!felder[i][j] && bombeZaehlen(i,j) > 0) {
+            printenZahlen(i,j);
+        }
+        this.imageView.invalidate();
+    }
+
+    private int bombeZaehlen (int i, int j){
+        int bombeNachbarn = 0;
+        for (int c = -1; c <= 1; c++) {
+            for (int d = -1; d <= 1; d++) {
+                if (c == 0 && d == 0) {
+                    continue;
+                }
+                int newC = c + i;
+                int newD = d + j;
+                if (newC >= 0 && newC < felder.length && newD >= 0 && newD < felder[newC].length) {
+                    if (felder[newC][newD]) {
+                        bombeNachbarn++;
+                    }
+                }
+            }
+        }
+        return bombeNachbarn;
+    }
+
+    private void printenZahlen(int i, int j){
+        int bombeNachbarn = bombeZaehlen(i,j);
+        if(flagge){
+            paint.setColor(Color.BLACK);
+            canvas.drawRect(x*i-10+100, y*j-10+100, x*i+3+100,y*j+100,paint);
+            paint.setColor(Color.RED);
+            canvas.drawRect(x*i+1-10+100, y*j-10+1+100, x*i-1+3+100,y*j-1+100,paint);
+            paint.setColor(Color.BLACK);
+            canvas.drawLine(x*i-1-10+100,y*j-10+100,x*i-1-10+100,y*j+10+100,paint);
+        }
+        else {
+            paint.setColor(Color.rgb(115, 115, 115));
+            canvas.drawRect(x * i - 18 + 100, y * j - 18 + 100, x * i + 18 + 100, y * j + 18 + 100, paint);
+            if (bombeNachbarn == 0) {
+                aufdecken(i, j);
+            }
+            if (bombeNachbarn == 1) {
+                paint.setColor(Color.rgb(45, 92, 194));
+            }
+            if (bombeNachbarn == 2) {
+                paint.setColor(Color.rgb(29, 87, 49));
+            }
+            if (bombeNachbarn == 3) {
+                paint.setColor(Color.rgb(240, 79, 38));
+            }
+            if (bombeNachbarn == 4) {
+                paint.setColor(Color.rgb(37, 23, 120));
+            }
+            if (bombeNachbarn == 5) {
+                paint.setColor(Color.rgb(120, 26, 23));
+            }
+            if (bombeNachbarn == 6) {
+                paint.setColor(Color.rgb(61, 141, 161));
+            }
+            if (bombeNachbarn == 7) {
+                paint.setColor(Color.BLACK);
+            }
+            if (bombeNachbarn == 8) {
+                paint.setColor(Color.rgb(145, 145, 145));
+            }
+            this.paint.setTextSize(35);
+            canvas.drawText(Integer.toString(bombeNachbarn), x * i + 90, y * j + 113, paint);
+        }
+        this.imageView.invalidate();
+    }
+
+    private void zeichneFlagge(){
+        paint.setColor(Color.rgb(60, 60, 60));
+        canvas.drawRect(76,996,124,1044, paint);
+        paint.setColor(Color.rgb(90, 90, 90));
+        canvas.drawRect(80,1000,120,1040, paint);
+        paint.setColor(Color.BLACK);
+        canvas.drawRect(95, 1010, 110,1020,paint);
+        paint.setColor(Color.RED);
+        canvas.drawRect(96, 1011, 109,1019,paint);
+        paint.setColor(Color.BLACK);
+        canvas.drawLine(94,1010,94,1030,paint);
+    }
+    private void zeichneFlaggeWeg(){
+        paint.setColor(Color.rgb(60, 60, 60));
+        canvas.drawRect(76+50,996,124+50,1044, paint);
+        paint.setColor(Color.rgb(90, 90, 90));
+        canvas.drawRect(80+50,1000,120+50,1040, paint);
+        paint.setColor(Color.BLACK);
+        canvas.drawRect(95+50, 1010, 110+50,1020,paint);
+        paint.setColor(Color.RED);
+        canvas.drawRect(96+50, 1011, 109+50,1019,paint);
+        paint.setColor(Color.BLACK);
+        canvas.drawLine(94+50,1010,94+50,1030,paint);
+
+        canvas.drawLine(80+50,1000,120+50,1040,paint);
+        canvas.drawLine(120+50,1000,80+50,1040,paint);
+    }
+
+    private void neustartButton(){
+        paint.setColor(Color.rgb(60, 60, 60));
+        canvas.drawRect(1920,980,2120,1044, paint);
+        paint.setColor(Color.rgb(90, 90, 90));
+        canvas.drawRect(1924,984,2116,1040, paint);
+        paint.setColor(Color.BLACK);
+        this.paint.setTextSize(35);
+        canvas.drawText("Neustarten", 1932,1025,paint);
+    }
+}
